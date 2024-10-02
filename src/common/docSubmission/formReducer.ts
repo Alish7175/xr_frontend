@@ -18,6 +18,8 @@ export const initialState = {
   documents: [{ fileName: "", fileType: "", file: null }],
 };
 
+export type TFormData = typeof initialState;
+
 // Reducer function
 export const formReducer = (state, action) => {
   switch (action.type) {

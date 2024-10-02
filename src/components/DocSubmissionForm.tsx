@@ -1,25 +1,90 @@
 import React, { useReducer, useState } from "react";
 import { formSchema } from "../common/docSubmission/formValidation";
 import { formReducer, initialState } from "../common/docSubmission/formReducer";
+import { useMutation } from "@tanstack/react-query";
+import { formSubmissionApi } from "../apis/formSubmissionApi";
+import { AxiosError } from "axios";
 
 const DocumentSubmissionForm = () => {
   const [state, dispatch] = useReducer(formReducer, initialState);
   const [errors, setErrors] = useState<any>(null);
+  const formSubmissionMutation = useMutation(
+    // @ts-ignore
+    (formData: FormData) => formSubmissionApi(formData),
+    {
+      onSuccess: (data) => {
+        // Handle success
+        console.log("Form submission successful:", data);
+      },
+      onError: (error: AxiosError) => {
+        // Handle error
+        console.error("Form submission failed:", error);
+      },
+    }
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault(); // Prevent the form from reloading the page
+
     const validationResult = formSchema.safeParse(state);
 
-    // Log the validation result to see if validation is passing or failing
     console.log("Validation Result:", validationResult);
 
     if (!validationResult.success) {
-      // Log any validation errors
       console.log("Validation Errors:", validationResult.error.format());
       setErrors(validationResult.error.format());
+    } else if (state.documents.length < 2) {
+      setErrors({ documents: "At least two documents are required." });
     } else {
       setErrors(null);
-      console.log("Form Submitted:", state); // Log the form state if validation passes
+      console.log("Form Submitted:", state);
+
+      // Create FormData to send files and form data
+      const formData = new FormData();
+
+      // Append personal info to FormData
+      formData.append("firstName", state.personalInfo.firstName);
+      formData.append("lastName", state.personalInfo.lastName);
+      formData.append("email", state.personalInfo.email);
+      formData.append("dob", state.personalInfo.dob);
+
+      // Append address fields to FormData
+      formData.append(
+        "residentialAddress[street1]",
+        state.residentialAddress.street1
+      );
+      formData.append(
+        "residentialAddress[street2]",
+        state.residentialAddress.street2
+      );
+      formData.append(
+        "permanentAddress[street1]",
+        state.permanentAddress.street1
+      );
+      formData.append(
+        "permanentAddress[street2]",
+        state.permanentAddress.street2
+      );
+      formData.append("sameAsResidential", state.sameAsResidential);
+
+      // Append documents to FormData
+      state.documents.forEach((doc, index) => {
+        if (doc.file) {
+          formData.append("documents", doc.file); // 'documents' is the field name
+          formData.append(`documents[${index}][fileName]`, doc.fileName);
+          formData.append(`documents[${index}][fileType]`, doc.fileType);
+        }
+      });
+
+      // Log the formData to check what is being submitted
+      for (const pair of formData.entries()) {
+        console.log(pair[0] + ": " + pair[1]);
+      }
+
+      // Submit the FormData with Axios or fetch
+      formSubmissionMutation.mutate(formData);
+
+      // Reset form after submission
       dispatch({
         type: "RESET_FORM_FIELDS",
       });
